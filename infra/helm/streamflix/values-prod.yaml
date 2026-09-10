@@ -1,0 +1,39 @@
+image:
+  repository: "REPLACE_WITH_prod_ECR_REPO_URL"
+  tag: "latest"
+
+api:
+  replicaCount: 3
+  autoscaling: { enabled: true, minReplicas: 3, maxReplicas: 20, targetCPUUtilizationPercentage: 65 }
+  resources:
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { cpu: 2000m, memory: 1Gi }
+  serviceAccount:
+    irsaRoleArn: "REPLACE_WITH_prod_api_irsa_role_arn"
+
+worker:
+  replicaCount: 2
+  autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 70 }
+  serviceAccount:
+    irsaRoleArn: "REPLACE_WITH_prod_worker_irsa_role_arn"
+
+ingress:
+  host: "api.streamflix.com"
+  certificateArn: "REPLACE_WITH_prod_acm_certificate_arn"
+
+env:
+  NODE_ENV: production
+  LOG_LEVEL: warn
+
+externalSecrets:
+  sources:
+    - name: database
+      remoteRef: streamflix-prod/database-url
+    - name: redis
+      remoteRef: streamflix-prod/redis-url
+    - name: jwt
+      remoteRef: streamflix-prod/jwt
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2

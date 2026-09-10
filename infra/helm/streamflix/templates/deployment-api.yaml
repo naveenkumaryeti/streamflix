@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamflix-api
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "streamflix.selectorLabels" (dict "component" "api" "Values" .Values) | nindent 4 }}
+    {{- include "streamflix.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "streamflix.selectorLabels" (dict "component" "api" "Values" .Values) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "streamflix.selectorLabels" (dict "component" "api" "Values" .Values) | nindent 8 }}
+      annotations:
+        checksum/config: {{ .Values.env | toYaml | sha256sum }}
+    spec:
+      serviceAccountName: streamflix-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}/api:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+          envFrom:
+            - configMapRef: { name: streamflix-config }
+            {{- if .Values.externalSecrets.enabled }}
+            {{- range .Values.externalSecrets.sources }}
+            - secretRef: { name: streamflix-{{ .name }} }
+            {{- end }}
+            {{- end }}
+          env:
+            - name: PORT
+              value: {{ .Values.api.port | quote }}
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "streamflix.selectorLabels" (dict "component" "api" "Values" .Values) | nindent 20 }}

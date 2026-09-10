@@ -1,0 +1,36 @@
+# Dev overlay. Fill image.repository and the externalSecrets remoteRefs with
+# `terragrunt output` values from terragrunt/live/dev after applying infra.
+image:
+  repository: "REPLACE_WITH_dev_ECR_REPO_URL"
+  tag: "latest"
+
+api:
+  replicaCount: 1
+  autoscaling: { enabled: false, minReplicas: 1, maxReplicas: 3 }
+  serviceAccount:
+    irsaRoleArn: "REPLACE_WITH_dev_api_irsa_role_arn"
+
+worker:
+  replicaCount: 1
+  autoscaling: { enabled: false, minReplicas: 1, maxReplicas: 2 }
+  serviceAccount:
+    irsaRoleArn: "REPLACE_WITH_dev_worker_irsa_role_arn"
+
+ingress:
+  host: "api-dev.streamflix.local"
+
+env:
+  NODE_ENV: development
+  LOG_LEVEL: debug
+
+externalSecrets:
+  sources:
+    - name: database
+      remoteRef: streamflix-dev/database-url
+    - name: redis
+      remoteRef: streamflix-dev/redis-url
+    - name: jwt
+      remoteRef: streamflix-dev/jwt
+
+podDisruptionBudget:
+  enabled: false

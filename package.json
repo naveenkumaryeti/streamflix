@@ -1,0 +1,32 @@
+{
+  "name": "streamflix",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StreamFlix — video streaming platform (React + Node.js + PostgreSQL/Redis/DynamoDB) built for the Phase 1 cloud architecture.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm:dev:api\" \"npm:dev:worker\" \"npm:dev:web\"",
+    "dev:api": "npm run dev --workspace backend",
+    "dev:worker": "npm run dev:worker --workspace backend",
+    "dev:web": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace frontend",
+    "migrate": "npm run migrate --workspace backend",
+    "seed": "npm run seed --workspace backend",
+    "bootstrap:dynamo": "npm run bootstrap:dynamo --workspace backend",
+    "setup": "npm run migrate && npm run bootstrap:dynamo && npm run seed",
+    "test": "npm run test --workspace backend",
+    "lint": "npm run lint --workspaces --if-present",
+    "up": "docker compose up --build -d",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f api worker"
+  },
+  "devDependencies": {
+    "concurrently": "8.2.2"
+  }
+}

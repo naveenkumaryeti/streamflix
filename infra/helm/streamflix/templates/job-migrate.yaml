@@ -1,0 +1,37 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Fixed name per release+revision so re-running `helm upgrade` on a failed migration
+  # doesn't collide with the stuck job — Helm's hook-delete-policy cleans up the old one first.
+  name: streamflix-migrate-{{ .Release.Revision }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        {{- include "streamflix.selectorLabels" (dict "component" "migrate" "Values" .Values) | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: streamflix-api
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}/api:{{ .Values.image.tag }}"
+          # Same image as the API (target: runtime), just a different entrypoint — runs SQL
+          # migrations, the DynamoDB table bootstrap, and seed data. Matches what
+          # docker-compose.yml's `migrate` service runs locally.
+          command: ["node", "src/db/setup.js"]
+          envFrom:
+            - configMapRef: { name: streamflix-config }
+            {{- range .Values.externalSecrets.sources }}
+            - secretRef: { name: streamflix-{{ .name }} }
+            {{- end }}
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }

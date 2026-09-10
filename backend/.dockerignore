@@ -1,0 +1,9 @@
+node_modules
+storage
+.env
+.env.*
+!.env.example
+npm-debug.log*
+tests
+coverage
+*.md

@@ -1,0 +1,9 @@
+apiVersion: v2
+name: streamflix
+description: >
+  StreamFlix backend (api + worker) on EKS. The frontend is a static SPA served from
+  S3 + CloudFront (see infra/terraform/modules/s3 and cloudfront) — it never runs in
+  this cluster, so there's no "web" workload in this chart.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

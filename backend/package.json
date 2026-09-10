@@ -1,0 +1,51 @@
+{
+  "name": "@streamflix/backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StreamFlix API — Node.js/Express, PostgreSQL, Redis, DynamoDB, S3/MediaConvert/CloudFront.",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "worker": "node src/worker/index.js",
+    "dev:worker": "node --watch src/worker/index.js",
+    "migrate": "node src/db/migrate.js",
+    "bootstrap:dynamo": "node src/db/bootstrapDynamo.js",
+    "seed": "node src/db/seed.js",
+    "setup": "node src/db/setup.js",
+    "test": "node --test --test-reporter=spec tests/unit tests/integration",
+    "test:unit": "node --test --test-reporter=spec tests/unit",
+    "test:integration": "node --test --test-reporter=spec tests/integration",
+    "lint": "eslint src tests"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.590.0",
+    "@aws-sdk/client-mediaconvert": "^3.590.0",
+    "@aws-sdk/client-s3": "^3.590.0",
+    "@aws-sdk/cloudfront-signer": "^3.590.0",
+    "@aws-sdk/lib-dynamodb": "^3.590.0",
+    "@aws-sdk/s3-request-presigner": "^3.590.0",
+    "bcryptjs": "2.4.3",
+    "compression": "1.7.4",
+    "cookie-parser": "1.4.6",
+    "cors": "2.8.5",
+    "dotenv": "16.4.5",
+    "express": "4.19.2",
+    "helmet": "7.1.0",
+    "jsonwebtoken": "9.0.2",
+    "multer": "1.4.5-lts.1",
+    "pg": "8.11.5",
+    "pino": "9.1.0",
+    "pino-http": "10.1.0",
+    "prom-client": "15.1.2",
+    "redis": "4.6.14",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "eslint": "^9.5.0"
+  }
+}

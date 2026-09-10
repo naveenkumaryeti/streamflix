@@ -1,0 +1,15 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- range $component := list "api" "worker" }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: streamflix-{{ $component }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "streamflix.selectorLabels" (dict "component" $component "Values" $.Values) | nindent 6 }}
+---
+{{- end }}
+{{- end }}

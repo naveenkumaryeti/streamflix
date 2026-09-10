@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamflix-worker
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "streamflix.selectorLabels" (dict "component" "worker" "Values" .Values) | nindent 4 }}
+    {{- include "streamflix.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "streamflix.selectorLabels" (dict "component" "worker" "Values" .Values) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "streamflix.selectorLabels" (dict "component" "worker" "Values" .Values) | nindent 8 }}
+      annotations:
+        checksum/config: {{ .Values.env | toYaml | sha256sum }}
+    spec:
+      serviceAccountName: streamflix-worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      # A transcode job in flight shouldn't be killed mid-encode by a routine rolling update
+      # or node drain — give it real time to either finish or checkpoint before SIGKILL.
+      terminationGracePeriodSeconds: 90
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.worker.port }}
+          envFrom:
+            - configMapRef: { name: streamflix-config }
+            {{- if .Values.externalSecrets.enabled }}
+            {{- range .Values.externalSecrets.sources }}
+            - secretRef: { name: streamflix-{{ .name }} }
+            {{- end }}
+            {{- end }}
+          env:
+            - name: WORKER_PORT
+              value: {{ .Values.worker.port | quote }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            failureThreshold: 4
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }

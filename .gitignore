@@ -1,0 +1,48 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# env / secrets — never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!infra/**/*.key.example
+
+# build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# local media + uploads (LOCAL storage driver writes here)
+backend/storage/
+backend/tmp/
+*.mp4
+*.mkv
+*.ts
+!src/**/*.ts
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terragrunt-cache/
+
+# editors / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

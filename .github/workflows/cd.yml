@@ -1,0 +1,130 @@
+name: CD
+
+# Phase 9 continued: Amazon ECR -> CD Deployment -> Amazon EKS -> Rolling Update -> Production.
+# Runs after CI succeeds on main (auto-deploys to dev), or on demand for stage/prod via
+# workflow_dispatch — promotion is a deliberate action, not something a push triggers.
+#
+# Auth is via GitHub's OIDC provider assuming an AWS IAM role (no long-lived AWS keys stored
+# in the repo) — that role isn't created by the Terraform in this repo yet; see
+# infra/README.md's "GitHub OIDC" note for what to add before this workflow can actually run.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: dev
+        type: choice
+        options: [dev, stage, prod]
+
+permissions:
+  id-token: write # required for OIDC -> AWS
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }} # e.g. 123456789012.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+  determine-env:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.pick.outputs.environment }}
+    steps:
+      - id: pick
+        run: echo "environment=${{ github.event.inputs.environment || 'dev' }}" >> "$GITHUB_OUTPUT"
+
+  build-and-push:
+    name: Build + push (${{ matrix.image }})
+    needs: determine-env
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-env.outputs.environment }}
+    strategy:
+      matrix:
+        include:
+          - image: api
+            context: backend
+            target: runtime
+          - image: worker
+            context: backend
+            target: worker
+          - image: web
+            context: frontend
+            target: runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/streamflix-${{ needs.determine-env.outputs.environment }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/streamflix-${{ needs.determine-env.outputs.environment }}/${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy-backend:
+    name: Helm deploy (api + worker)
+    needs: [determine-env, build-and-push]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-env.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: azure/setup-helm@v4
+        with: { version: v3.15.3 }
+      - run: aws eks update-kubeconfig --name streamflix-${{ needs.determine-env.outputs.environment }}-eks --region ${{ env.AWS_REGION }}
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install streamflix infra/helm/streamflix \
+            -f infra/helm/streamflix/values-${{ needs.determine-env.outputs.environment }}.yaml \
+            --set image.repository=${{ env.ECR_REGISTRY }}/streamflix-${{ needs.determine-env.outputs.environment }} \
+            --set image.tag=${{ github.sha }} \
+            --namespace streamflix --create-namespace \
+            --wait --timeout 10m
+      - name: Verify rollout
+        run: |
+          kubectl -n streamflix rollout status deployment/streamflix-api --timeout=5m
+          kubectl -n streamflix rollout status deployment/streamflix-worker --timeout=5m
+
+  deploy-frontend:
+    name: Sync frontend to S3 + invalidate CloudFront
+    needs: [determine-env, build-and-push]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-env.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm }
+      - run: npm install
+      - working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          VITE_APP_NAME: StreamFlix
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - run: aws s3 sync frontend/dist s3://streamflix-${{ needs.determine-env.outputs.environment }}-frontend --delete
+      - run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"

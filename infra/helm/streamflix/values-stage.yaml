@@ -1,0 +1,30 @@
+image:
+  repository: "REPLACE_WITH_stage_ECR_REPO_URL"
+  tag: "latest"
+
+api:
+  replicaCount: 2
+  serviceAccount:
+    irsaRoleArn: "REPLACE_WITH_stage_api_irsa_role_arn"
+
+worker:
+  replicaCount: 1
+  serviceAccount:
+    irsaRoleArn: "REPLACE_WITH_stage_worker_irsa_role_arn"
+
+ingress:
+  host: "api-stage.streamflix.com"
+  certificateArn: "REPLACE_WITH_stage_acm_certificate_arn"
+
+env:
+  NODE_ENV: production
+  LOG_LEVEL: info
+
+externalSecrets:
+  sources:
+    - name: database
+      remoteRef: streamflix-stage/database-url
+    - name: redis
+      remoteRef: streamflix-stage/redis-url
+    - name: jwt
+      remoteRef: streamflix-stage/jwt

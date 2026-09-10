@@ -1,0 +1,83 @@
+# Base values — every field an env overlay (values-dev.yaml / values-stage.yaml /
+# values-prod.yaml) can override. `helm upgrade -f values.yaml -f values-<env>.yaml`.
+
+nameOverride: streamflix
+namespace: streamflix
+
+image:
+  repository: "" # e.g. 123456789.dkr.ecr.ap-south-1.amazonaws.com/streamflix-dev
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+api:
+  replicaCount: 2
+  port: 8080
+  resources:
+    requests: { cpu: 200m, memory: 256Mi }
+    limits: { cpu: 1000m, memory: 512Mi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  serviceAccount:
+    irsaRoleArn: ""
+
+worker:
+  replicaCount: 1
+  port: 9090
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: 1500m, memory: 1Gi }
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+  serviceAccount:
+    irsaRoleArn: ""
+
+migration:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: alb
+  host: ""
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /api/v1/health
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+  certificateArn: ""
+
+# Non-secret application config, mounted as env vars via a ConfigMap. Anything with a real
+# secret value (DB/Redis URLs, JWT secrets, MediaConvert role) is injected separately —
+# see templates/externalsecret.yaml — and must never land in this map.
+env:
+  NODE_ENV: production
+  AWS_REGION: ap-south-1
+  STORAGE_DRIVER: s3
+  TRANSCODER_DRIVER: mediaconvert
+  CDN_DRIVER: cloudfront
+  LOG_LEVEL: info
+
+# Names of the AWS Secrets Manager secrets to sync in via External Secrets Operator.
+# Populated per-env with the real ARNs/names from `terraform output` — see
+# values-dev.yaml for the shape. Requires the ESO chart to already be installed on the
+# cluster (kubectl apply -f https://github.com/external-secrets/external-secrets ...).
+externalSecrets:
+  enabled: true
+  refreshInterval: 1h
+  secretStoreRegion: ap-south-1
+  sources: []
+  # - name: database
+  #   remoteRef: streamflix-dev/database-url
+  # - name: redis
+  #   remoteRef: streamflix-dev/redis-url
+  # - name: jwt
+  #   remoteRef: streamflix-dev/jwt
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

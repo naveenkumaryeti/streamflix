@@ -18,6 +18,11 @@ resource "aws_sns_topic" "alerts" {
   name = "${local.name}-alerts"
 }
 
+resource "aws_sns_topic" "alerts_us_east_1" {
+  provider = aws.us_east_1
+  name     = "${local.name}-alerts-global"
+}
+
 resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   alarm_name          = "${local.name}-rds-high-cpu"
   namespace           = "AWS/RDS"
@@ -100,6 +105,7 @@ resource "aws_cloudwatch_metric_alarm" "eks_pod_restarts" {
 
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   provider            = aws.us_east_1
+  region              = "us-east-1"
   alarm_name          = "${local.name}-cloudfront-high-5xx"
   namespace           = "AWS/CloudFront"
   metric_name         = "5xxErrorRate"
@@ -109,7 +115,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   evaluation_periods  = 2
   threshold           = 5
   comparison_operator = "GreaterThanThreshold"
-  alarm_actions       = [aws_sns_topic.alerts.arn]
+  alarm_actions       = [aws_sns_topic.alerts_us_east_1.arn]
   treat_missing_data  = "notBreaching"
 }
 

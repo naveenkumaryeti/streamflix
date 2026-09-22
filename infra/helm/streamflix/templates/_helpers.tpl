@@ -1,5 +1,5 @@
 {{- define "streamflix.fullname" -}}
-{{ .Values.nameOverride | default .Chart.Name }}
+{{ .Values.nameOverride | default "streamflix" }}
 {{- end -}}
 
 {{- define "streamflix.labels" -}}

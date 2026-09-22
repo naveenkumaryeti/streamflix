@@ -20,12 +20,16 @@ resource "aws_wafv2_web_acl" "this" {
   description = "StreamFlix ${var.environment} edge protection"
   scope       = "CLOUDFRONT"
 
-  default_action { allow {} }
+  default_action {
+    allow {}
+  }
 
   rule {
     name     = "AWS-CommonRuleSet"
     priority = 1
-    override_action { none {} }
+    override_action {
+      none {}
+    }
     statement {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
@@ -42,7 +46,9 @@ resource "aws_wafv2_web_acl" "this" {
   rule {
     name     = "AWS-KnownBadInputs"
     priority = 2
-    override_action { none {} }
+    override_action {
+      none {}
+    }
     statement {
       managed_rule_group_statement {
         name        = "AWSManagedRulesKnownBadInputsRuleSet"
@@ -59,7 +65,9 @@ resource "aws_wafv2_web_acl" "this" {
   rule {
     name     = "RateLimitPerIp"
     priority = 3
-    action { block {} }
+    action {
+      block {}
+    }
     statement {
       rate_based_statement {
         limit              = var.rate_limit_per_5min

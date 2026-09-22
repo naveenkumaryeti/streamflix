@@ -60,85 +60,7 @@ resource "aws_iam_role_policy_attachment" "ecr_readonly" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# ---- IRSA: api + worker service accounts ----
-# Scoped to whatever OIDC provider the eks module creates; passed in as a variable so this
-# module has no direct dependency on eks (keeps the dependency graph a DAG, not a cycle).
-data "aws_iam_policy_document" "irsa_trust" {
-  for_each = var.oidc_provider_arn != "" ? toset(["api", "worker"]) : []
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-    principals {
-      type        = "Federated"
-      identifiers = [var.oidc_provider_arn]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "${var.oidc_provider_url}:sub"
-      values   = ["system:serviceaccount:${var.namespace}:streamflix-${each.key}"]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "${var.oidc_provider_url}:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-  }
-}
 
-resource "aws_iam_role" "app" {
-  for_each           = var.oidc_provider_arn != "" ? toset(["api", "worker"]) : []
-  name               = "${local.name}-${each.key}-irsa"
-  assume_role_policy = data.aws_iam_policy_document.irsa_trust[each.key].json
-}
-
-# Application permissions: S3 (raw/processed/thumbnails), DynamoDB (watch progress),
-# MediaConvert (submit jobs), Secrets Manager (read app secrets). Same policy for
-# api + worker for simplicity — trim per-role if you want tighter separation.
-data "aws_iam_policy_document" "app_permissions" {
-  statement {
-    sid     = "S3Media"
-    effect  = "Allow"
-    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
-    resources = flatten([
-      for b in var.media_bucket_arns : [b, "${b}/*"]
-    ])
-  }
-  statement {
-    sid       = "DynamoWatchProgress"
-    effect    = "Allow"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query"]
-    resources = [var.dynamodb_table_arn, "${var.dynamodb_table_arn}/index/*"]
-  }
-  statement {
-    sid       = "MediaConvertSubmit"
-    effect    = "Allow"
-    actions   = ["mediaconvert:CreateJob", "mediaconvert:GetJob", "mediaconvert:ListJobs"]
-    resources = ["*"]
-  }
-  statement {
-    sid       = "PassMediaConvertRole"
-    effect    = "Allow"
-    actions   = ["iam:PassRole"]
-    resources = [aws_iam_role.mediaconvert.arn]
-  }
-  statement {
-    sid       = "SecretsRead"
-    effect    = "Allow"
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = var.secret_arns
-  }
-}
-
-resource "aws_iam_policy" "app_permissions" {
-  name   = "${local.name}-app-permissions"
-  policy = data.aws_iam_policy_document.app_permissions.json
-}
-
-resource "aws_iam_role_policy_attachment" "app_permissions" {
-  for_each   = aws_iam_role.app
-  role       = each.value.name
-  policy_arn = aws_iam_policy.app_permissions.arn
-}
 
 # ---- MediaConvert service role: lets MediaConvert itself read the raw bucket / write processed ----
 resource "aws_iam_role" "mediaconvert" {
@@ -216,8 +138,8 @@ resource "aws_iam_role" "github_actions" {
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_admin" {
-  count      = var.enable_github_oidc ? 1 : 0
-  role       = aws_iam_role.github_actions[0].name
+  count = var.enable_github_oidc ? 1 : 0
+  role  = aws_iam_role.github_actions[0].name
   # Deliberately broad for a learning project's CI role. Tighten to a scoped custom policy
   # (ECR push, EKS describe/access-entry, S3 sync on the frontend bucket, CloudFront
   # invalidation, terraform state bucket/lock table RW) before this touches a real account.

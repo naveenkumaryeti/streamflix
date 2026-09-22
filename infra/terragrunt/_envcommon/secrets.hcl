@@ -8,4 +8,5 @@ terraform {
 
 inputs = {
   environment = local.env.locals.environment
+  cloudfront_private_key_pem = file("${get_repo_root()}/infra/.secrets/cloudfront-private.pem")
 }

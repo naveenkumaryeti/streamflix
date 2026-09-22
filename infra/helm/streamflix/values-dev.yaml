@@ -1,29 +1,38 @@
 # Dev overlay. Fill image.repository and the externalSecrets remoteRefs with
 # `terragrunt output` values from terragrunt/live/dev after applying infra.
 image:
-  repository: "REPLACE_WITH_dev_ECR_REPO_URL"
+  repository: "340529311120.dkr.ecr.ap-south-1.amazonaws.com/streamflix-dev"
   tag: "latest"
 
 api:
   replicaCount: 1
   autoscaling: { enabled: false, minReplicas: 1, maxReplicas: 3 }
   serviceAccount:
-    irsaRoleArn: "REPLACE_WITH_dev_api_irsa_role_arn"
+    irsaRoleArn: "arn:aws:iam::340529311120:role/streamflix-dev-api-irsa"
 
 worker:
   replicaCount: 1
   autoscaling: { enabled: false, minReplicas: 1, maxReplicas: 2 }
   serviceAccount:
-    irsaRoleArn: "REPLACE_WITH_dev_worker_irsa_role_arn"
+    irsaRoleArn: "arn:aws:iam::340529311120:role/streamflix-dev-worker-irsa"
 
 ingress:
-  host: "api-dev.streamflix.local"
-
+  host: ""
+  annotations:
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 env:
   NODE_ENV: development
   LOG_LEVEL: debug
-
-externalSecrets:
+  DATABASE_SSL: "true"
+  CORS_ORIGINS: "https://d151rvcubug7r6.cloudfront.net"
+  S3_BUCKET_RAW: "streamflix-dev-raw-videos"
+  S3_BUCKET_PROCESSED: "streamflix-dev-processed-videos"
+  S3_BUCKET_THUMBNAILS: "streamflix-dev-thumbnails"
+  MEDIACONVERT_ENDPOINT: "https://mediaconvert.ap-south-1.amazonaws.com"
+  MEDIACONVERT_ROLE_ARN: "arn:aws:iam::340529311120:role/streamflix-dev-mediaconvert"
+  CLOUDFRONT_KEY_PAIR_ID: "K130ZQ6XTY7AHN"
+  CLOUDFRONT_DOMAIN: "d1y5dzy7ton4w.cloudfront.net"
+  PUBLIC_MEDIA_BASE_URL: "https://d1y5dzy7ton4w.cloudfront.net"
   sources:
     - name: database
       remoteRef: streamflix-dev/database-url

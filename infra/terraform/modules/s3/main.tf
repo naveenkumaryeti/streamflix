@@ -37,8 +37,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   for_each = local.buckets
   bucket   = aws_s3_bucket.this[each.key].id
   rule {
-    apply_server_side_encryption_by_default { sse_algorithm = "aws:kms" }
-    bucket_key_enabled = true
+    apply_server_side_encryption_by_default { sse_algorithm = "AES256" }
   }
 }
 
@@ -67,6 +66,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "raw" {
   }
 }
 
+# CloudFront's classic S3 access-logging feature still requires the target bucket to accept
+# ACL grants (it writes logs via the awslogsdelivery canonical user) — buckets default to
+# ACLs-disabled (BucketOwnerEnforced) since 2023, so opt this one bucket back in.
+resource "aws_s3_bucket_ownership_controls" "logs" {
+  bucket = aws_s3_bucket.this["logs"].id
+  rule { object_ownership = "BucketOwnerPreferred" }
+}
+
+resource "aws_s3_bucket_acl" "logs" {
+  bucket     = aws_s3_bucket.this["logs"].id
+  acl        = "log-delivery-write"
+  depends_on = [aws_s3_bucket_ownership_controls.logs, aws_s3_bucket_public_access_block.this]
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   bucket = aws_s3_bucket.this["logs"].id
   rule {
@@ -86,8 +99,20 @@ resource "aws_s3_bucket_cors_configuration" "frontend" {
   }
 }
 
+resource "aws_s3_bucket_cors_configuration" "raw" {
+  bucket = aws_s3_bucket.this["raw"].id
+  cors_rule {
+    allowed_methods = ["PUT", "GET", "HEAD"]
+    allowed_origins = var.upload_cors_origins
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
 # CloudFront (OAC) is the only allowed reader/writer of these buckets — enforced via the
 # bucket policies below, granted to the CloudFront distribution's service principal.
+data "aws_caller_identity" "current" {}
+
 data "aws_iam_policy_document" "oac_read" {
   for_each = toset(["frontend", "processed", "thumbs"])
   statement {
@@ -99,16 +124,19 @@ data "aws_iam_policy_document" "oac_read" {
       type        = "Service"
       identifiers = ["cloudfront.amazonaws.com"]
     }
+    # Scoped to any CloudFront distribution in this account rather than one specific
+    # distribution ARN — avoids a circular dependency (s3 -> cloudfront -> s3, since
+    # cloudfront already needs s3's bucket domain names to be created first).
     condition {
       test     = "StringEquals"
-      variable = "AWS:SourceArn"
-      values   = [var.cloudfront_distribution_arn]
+      variable = "AWS:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "oac_read" {
-  for_each   = var.cloudfront_distribution_arn != "" ? toset(["frontend", "processed", "thumbs"]) : []
-  bucket     = aws_s3_bucket.this[each.key].id
-  policy     = data.aws_iam_policy_document.oac_read[each.key].json
+  for_each = toset(["frontend", "processed", "thumbs"])
+  bucket   = aws_s3_bucket.this[each.key].id
+  policy   = data.aws_iam_policy_document.oac_read[each.key].json
 }

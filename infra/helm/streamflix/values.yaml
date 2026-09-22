@@ -47,7 +47,7 @@ ingress:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/healthcheck-path: /api/v1/health
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
   certificateArn: ""
 
@@ -70,14 +70,15 @@ externalSecrets:
   enabled: true
   refreshInterval: 1h
   secretStoreRegion: ap-south-1
-  sources: []
-  # - name: database
-  #   remoteRef: streamflix-dev/database-url
-  # - name: redis
-  #   remoteRef: streamflix-dev/redis-url
-  # - name: jwt
-  #   remoteRef: streamflix-dev/jwt
-
+  sources:
+    - name: database
+      remoteRef: streamflix-dev/database-url
+    - name: redis
+      remoteRef: streamflix-dev/redis-url
+    - name: jwt
+      remoteRef: streamflix-dev/jwt
+    - name: cloudfront-signing
+      remoteRef: streamflix-dev/cloudfront-signing-key
 podDisruptionBudget:
   enabled: true
   minAvailable: 1

@@ -29,4 +29,6 @@ inputs = {
   frontend_bucket_regional_domain_name   = dependency.s3.outputs.bucket_regional_domain_names.frontend
   processed_bucket_regional_domain_name  = dependency.s3.outputs.bucket_regional_domain_names.processed
   logs_bucket_domain_name                = "${dependency.s3.outputs.bucket_names.logs}.s3.amazonaws.com"
+  alb_dns_name                           = local.env.locals.alb_dns_name
+  cloudfront_signing_public_key_pem = file("${get_repo_root()}/infra/.secrets/cloudfront-public.pem")
 }

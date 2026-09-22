@@ -180,6 +180,7 @@ function scheduleMaintenance() {
   } else {
     timers.push(
       every('poll-remote-jobs', config.worker.remotePollSeconds * 1_000, async () => {
+        state.lastTickAt = Date.now();
         const { polled, finished } = await mediaService.pollRemoteJobs();
         return polled ? { polled, finished } : null;
       }),

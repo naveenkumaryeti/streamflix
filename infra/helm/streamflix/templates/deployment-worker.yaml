@@ -40,9 +40,16 @@ spec:
             - secretRef: { name: streamflix-{{ .name }} }
             {{- end }}
             {{- end }}
+            - secretRef: { name: streamflix-cloudfront-signing }
           env:
             - name: WORKER_PORT
               value: {{ .Values.worker.port | quote }}
+            - name: NODE_EXTRA_CA_CERTS
+              value: /etc/ssl/rds/ca-bundle.pem
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/ssl/rds
+              readOnly: true
           readinessProbe:
             httpGet: { path: /healthz, port: http }
             initialDelaySeconds: 10
@@ -58,3 +65,7 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
             capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: rds-ca
+          configMap:
+            name: rds-ca-bundle

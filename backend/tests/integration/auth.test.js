@@ -178,7 +178,7 @@ describe('auth', { skip: online ? false : 'PostgreSQL is not reachable — start
   });
 
   it('clears the cookie when a refresh fails, instead of looping the client through 401s', async () => {
-    const res = await server.post(`${API}/auth/refresh`, { body: { refreshToken: 'garbage.token.value' } });
+    const res = await server.post(`${API}/auth/refresh`, { body: { refreshToken: 'garbage.token.value.xyz' } });
     assert.equal(res.status, 401);
     const cleared = cookie(res.cookies, 'sf_refresh');
     assert.ok(cleared, 'a clearing Set-Cookie is sent');

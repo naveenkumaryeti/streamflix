@@ -21,7 +21,7 @@ export function validate(schemas = {}) {
       }
       for (const issue of result.error.issues) {
         fields.push({
-          field: [source === 'body' ? null : source, ...issue.path].filter(Boolean).join('.') || source,
+          field: [source === 'body' ? null : source, ...issue.path].filter((p) => p !== null && p !== undefined).join('.') || source,
           message: issue.message,
         });
       }

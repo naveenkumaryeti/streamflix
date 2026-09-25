@@ -85,9 +85,16 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Write CloudFront private key
+        run: |
+          mkdir -p infra/.secrets
+          printf '%s' "${{ secrets.CLOUDFRONT_PRIVATE_KEY_PEM }}" > infra/.secrets/cloudfront-private.pem
       - name: terragrunt run-all apply
         working-directory: infra/terragrunt/live/${{ github.event.inputs.environment }}
         run: terragrunt run-all apply -no-color --terragrunt-non-interactive
       - name: Re-apply iam (picks up eks's OIDC provider — see infra/README.md)
-        working-directory: infra/terragrunt/live/${{ github.event.inputs.environment }}/iam
+        working-directory: infra/terragrunt/live/${{ github.event.inputs.environment }}/iam-cluster
+        run: terragrunt apply -no-color --terragrunt-non-interactive
+      - name: Re-apply iam-irsa (picks up eks's OIDC provider)
+        working-directory: infra/terragrunt/live/${{ github.event.inputs.environment }}/iam-irsa
         run: terragrunt apply -no-color --terragrunt-non-interactive

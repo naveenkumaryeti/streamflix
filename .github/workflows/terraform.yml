@@ -1,20 +1,17 @@
 name: Terraform
 
-# Phase 5 (Terraform + Terragrunt). Plans on every PR that touches infra/ (so reviewers see
-# the diff before merge); applying is a manual workflow_dispatch, never automatic — infra
-# changes get a deliberate click, not a drive-by merge.
+# Phase 5: Terraform + Terragrunt
+# DEV environment only.
+# Plans run on PRs that touch infrastructure.
+# Apply runs manually through workflow_dispatch.
 
 on:
   pull_request:
-    paths: ["infra/terraform/**", "infra/terragrunt/**"]
+    paths:
+      - "infra/terraform/**"
+      - "infra/terragrunt/**"
+
   workflow_dispatch:
-    inputs:
-      environment:
-        description: Environment to apply
-        required: true
-        default: dev
-        type: choice
-        options: [dev, stage, prod]
 
 permissions:
   id-token: write
@@ -29,72 +26,118 @@ env:
 jobs:
   plan:
     if: github.event_name == 'pull_request'
-    name: Plan (all envs)
+    name: Plan (dev)
     runs-on: ubuntu-latest
-    strategy:
-      matrix: { environment: [dev, stage, prod] }
-      fail-fast: false
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
+        with:
+          terraform_version: "${{ env.TF_VERSION }}"
+
       - name: Install Terragrunt
         run: |
           curl -sL -o /usr/local/bin/terragrunt \
             "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64"
           chmod +x /usr/local/bin/terragrunt
-      - uses: aws-actions/configure-aws-credentials@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: terragrunt run-all plan
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Terragrunt plan - dev
         id: plan
-        working-directory: infra/terragrunt/live/${{ matrix.environment }}
-        run: terragrunt run-all plan -no-color 2>&1 | tee /tmp/plan-${{ matrix.environment }}.txt
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          terragrunt run-all plan -no-color 2>&1 | tee /tmp/plan-dev.txt
         continue-on-error: true
+
       - name: Comment plan on PR
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const body = fs.readFileSync('/tmp/plan-${{ matrix.environment }}.txt', 'utf8').slice(-60000);
+
+            const body = fs
+              .readFileSync('/tmp/plan-dev.txt', 'utf8')
+              .slice(-60000);
+
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### Terraform plan — ${{ matrix.environment }}\n<details><summary>Show plan</summary>\n\n\`\`\`\n${body}\n\`\`\`\n</details>`,
+              body: `### Terraform plan — dev
+
+            <details>
+            <summary>Show plan</summary>
+
+            \`\`\`
+            ${body}
+            \`\`\`
+
+            </details>`
             });
-      - if: steps.plan.outcome == 'failure'
+
+      - name: Fail if Terraform plan failed
+        if: steps.plan.outcome == 'failure'
         run: exit 1
 
   apply:
     if: github.event_name == 'workflow_dispatch'
-    name: Apply (${{ github.event.inputs.environment }})
+    name: Apply (dev)
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }} # gate this with required reviewers for stage/prod
+    environment: dev
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "${{ env.TF_VERSION }}" }
+        with:
+          terraform_version: "${{ env.TF_VERSION }}"
+
       - name: Install Terragrunt
         run: |
           curl -sL -o /usr/local/bin/terragrunt \
             "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64"
           chmod +x /usr/local/bin/terragrunt
-      - uses: aws-actions/configure-aws-credentials@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
       - name: Write CloudFront private key
         run: |
           mkdir -p infra/.secrets
           printf '%s' "${{ secrets.CLOUDFRONT_PRIVATE_KEY_PEM }}" > infra/.secrets/cloudfront-private.pem
-      - name: terragrunt run-all apply
-        working-directory: infra/terragrunt/live/${{ github.event.inputs.environment }}
-        run: terragrunt run-all apply -no-color --terragrunt-non-interactive
-      - name: Re-apply iam (picks up eks's OIDC provider — see infra/README.md)
-        working-directory: infra/terragrunt/live/${{ github.event.inputs.environment }}/iam-cluster
-        run: terragrunt apply -no-color --terragrunt-non-interactive
-      - name: Re-apply iam-irsa (picks up eks's OIDC provider)
-        working-directory: infra/terragrunt/live/${{ github.event.inputs.environment }}/iam-irsa
-        run: terragrunt apply -no-color --terragrunt-non-interactive
+
+      - name: Terragrunt apply - dev
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          terragrunt run-all apply \
+            -no-color \
+            --terragrunt-non-interactive
+
+      - name: Re-apply IAM cluster
+        working-directory: infra/terragrunt/live/dev/iam-cluster
+        run: |
+          terragrunt apply \
+            -no-color \
+            --terragrunt-non-interactive
+
+      - name: Re-apply IAM IRSA
+        working-directory: infra/terragrunt/live/dev/iam-irsa
+        run: |
+          terragrunt apply \
+            -no-color \
+            --terragrunt-non-interactive

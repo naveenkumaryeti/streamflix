@@ -15,4 +15,5 @@ inputs = {
   enable_github_oidc = true   # this unit only creates cluster/node roles
   media_bucket_arns  = [dependency.s3.outputs.bucket_arns.raw, dependency.s3.outputs.bucket_arns.processed, dependency.s3.outputs.bucket_arns.thumbs]
   dynamodb_table_arn = dependency.dynamodb.outputs.table_arn
+  github_repo = local.env.locals.github_repo
 }

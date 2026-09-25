@@ -17,4 +17,5 @@ locals {
   alb_dns_name = "k8s-streamfl-streamfl-6280e1831a-56060286.ap-south-1.elb.amazonaws.com"
   create_dns_zone     = true
   deletion_protection = false
+  github_repo = "naveenkumaryeti/streamflix"   
 }

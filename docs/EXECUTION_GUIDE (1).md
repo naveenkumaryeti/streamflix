@@ -554,8 +554,32 @@ verification commands against the newly-deployed version.
 `infra/README.md`), the run pauses for approval — confirm it's waiting, approve it, then
 recheck the deployment as in Step 6.4/6.5.
 
----
+---Fix — widen the trust policy condition to match the actual format being sent:
 
+aws iam update-assume-role-policy --role-name streamflix-dev-github-actions --policy-document '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::340529311120:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": ["repo:naveenkumaryeti/streamflix:*", "repo:naveenkumaryeti@*/streamflix@*:*"]
+        }
+      }
+    }
+  ]
+}'
+
+aws ecr put-image-tag-mutability --repository-name streamflix-dev/api --image-tag-mutability MUTABLE
+aws ecr put-image-tag-mutability --repository-name streamflix-dev/worker --image-tag-mutability MUTABLE
+aws ecr put-image-tag-mutability --repository-name streamflix-dev/web --image-tag-mutability MUTABLE
 ## Quick-reference command summary
 
 | Goal | Command |

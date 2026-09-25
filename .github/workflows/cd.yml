@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.determine-env.outputs.environment }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - image: api

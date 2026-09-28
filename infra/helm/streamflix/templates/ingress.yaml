@@ -12,12 +12,9 @@ metadata:
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
-    {{- if .Values.ingress.host }}
-    - host: {{ .Values.ingress.host | quote }}
+    {{- range .Values.ingress.hosts }}
+    - host: {{ . | quote }}
       http:
-    {{- else }}
-    - http:
-    {{- end }}
         paths:
           - path: /api
             pathType: Prefix
@@ -26,4 +23,5 @@ spec:
                 name: streamflix-api
                 port:
                   number: 80
+    {{- end }}
 {{- end }}

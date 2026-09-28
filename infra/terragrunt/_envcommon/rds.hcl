@@ -13,6 +13,7 @@ dependency "vpc" {
 }
 
 inputs = {
+  backup_retention_days = 1
   environment          = local.env.locals.environment
   private_subnet_ids   = dependency.vpc.outputs.private_subnet_ids
   security_group_id    = dependency.vpc.outputs.data_tier_sg_id

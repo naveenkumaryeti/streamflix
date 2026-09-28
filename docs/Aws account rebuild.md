@@ -95,14 +95,11 @@ Run these and keep the output handy — you'll paste them into Part 6:
 ```bash
 cd infra/terragrunt/live/dev
 
-echo "--- Account ---"
-aws sts get-caller-identity --query Account --output text
-
 echo "--- ECR registry ---"
 cd ecr && terragrunt output repository_urls && cd ..
 
 echo "--- IRSA role ARNs ---"
-cd iam-irsa && terragrunt output api_irsa_role_arn worker_irsa_role_arn && cd ..
+cd iam-irsa && terragrunt output api_irsa_role_arn && terragrunt output worker_irsa_role_arn && cd ..
 
 echo "--- MediaConvert role ---"
 cd iam-cluster && terragrunt output mediaconvert_role_arn && cd ..
@@ -114,7 +111,7 @@ echo "--- S3 bucket names ---"
 cd s3 && terragrunt output bucket_names && cd ..
 
 echo "--- CloudFront ---"
-cd cloudfront && terragrunt output app_distribution_domain_name app_distribution_id media_distribution_domain_name && cd ..
+cd cloudfront && terragrunt output app_distribution_domain_name && terragrunt output app_distribution_id && terragrunt output media_distribution_domain_name && cd ..
 
 echo "--- CloudFront signing key pair ID ---"
 aws cloudfront list-public-keys --query "PublicKeyList.Items[?starts_with(Name, 'streamflix-dev-media-signing')].Id" --output text

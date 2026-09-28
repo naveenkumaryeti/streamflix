@@ -1,38 +1,40 @@
 # Dev overlay. Fill image.repository and the externalSecrets remoteRefs with
 # `terragrunt output` values from terragrunt/live/dev after applying infra.
 image:
-  repository: "340529311120.dkr.ecr.ap-south-1.amazonaws.com/streamflix-dev"
+  repository: "230944684570.dkr.ecr.ap-south-1.amazonaws.com/streamflix-dev"
   tag: "latest"
 
 api:
   replicaCount: 1
   autoscaling: { enabled: false, minReplicas: 1, maxReplicas: 3 }
   serviceAccount:
-    irsaRoleArn: "arn:aws:iam::340529311120:role/streamflix-dev-api-irsa"
+    irsaRoleArn: "arn:aws:iam::230944684570:role/streamflix-dev-api-irsa"
 
 worker:
   replicaCount: 1
   autoscaling: { enabled: false, minReplicas: 1, maxReplicas: 2 }
   serviceAccount:
-    irsaRoleArn: "arn:aws:iam::340529311120:role/streamflix-dev-worker-irsa"
+    irsaRoleArn: "arn:aws:iam::230944684570:role/streamflix-dev-worker-irsa"
 
 ingress:
-  host: ""
+  hosts:
+    - "api-dev.streamflix.local"
+    - "k8s-streamfl-streamfl-6280e1831a-511424446.ap-south-1.elb.amazonaws.com"
   annotations:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 env:
   NODE_ENV: development
   LOG_LEVEL: debug
   DATABASE_SSL: "true"
-  CORS_ORIGINS: "https://d151rvcubug7r6.cloudfront.net"
-  S3_BUCKET_RAW: "streamflix-dev-raw-videos"
-  S3_BUCKET_PROCESSED: "streamflix-dev-processed-videos"
-  S3_BUCKET_THUMBNAILS: "streamflix-dev-thumbnails"
+  CORS_ORIGINS: "https://d362cq47j090uo.cloudfront.net"
+  S3_BUCKET_RAW: "streamflix-230944684570-dev-raw-videos"
+  S3_BUCKET_PROCESSED: "streamflix-230944684570-dev-processed-videos"
+  S3_BUCKET_THUMBNAILS: "streamflix-230944684570-dev-thumbnails"
   MEDIACONVERT_ENDPOINT: "https://mediaconvert.ap-south-1.amazonaws.com"
-  MEDIACONVERT_ROLE_ARN: "arn:aws:iam::340529311120:role/streamflix-dev-mediaconvert"
-  CLOUDFRONT_KEY_PAIR_ID: "K130ZQ6XTY7AHN"
-  CLOUDFRONT_DOMAIN: "d1y5dzy7ton4w.cloudfront.net"
-  PUBLIC_MEDIA_BASE_URL: "https://d1y5dzy7ton4w.cloudfront.net"
+  MEDIACONVERT_ROLE_ARN: "arn:aws:iam::230944684570:role/streamflix-dev-mediaconvert"
+  CLOUDFRONT_KEY_PAIR_ID: "K1C0IZ8BYQ5F6H"
+  CLOUDFRONT_DOMAIN: "dnbxu2r6mg81q.cloudfront.net"
+  PUBLIC_MEDIA_BASE_URL: "https://dnbxu2r6mg81q.cloudfront.net"
   sources:
     - name: database
       remoteRef: streamflix-dev/database-url

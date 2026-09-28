@@ -11,7 +11,7 @@
 # Bucket/table names must match infra/terraform/global/backend-bootstrap.tf's outputs.
 
 locals {
-  project    = "streamflix"
+  project    = "streamflix-230944684570"
   aws_region = "ap-south-1"
 }
 

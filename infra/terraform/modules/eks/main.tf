@@ -91,8 +91,43 @@ resource "aws_eks_addon" "kube_proxy" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = "kube-proxy"
 }
+
+# EBS CSI driver needs real AWS credentials to call EC2/EBS APIs (nodes don't grant this via
+# IMDS by default) — IRSA role scoped to its own controller ServiceAccount in kube-system.
+data "aws_iam_policy_document" "ebs_csi_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name               = "${var.project}-${var.environment}-ebs-csi-irsa"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
 resource "aws_eks_addon" "ebs_csi" {
-  cluster_name = aws_eks_cluster.this.name
-  addon_name   = "aws-ebs-csi-driver"
-  depends_on   = [aws_eks_node_group.default]
+  cluster_name             = aws_eks_cluster.this.name
+  addon_name               = "aws-ebs-csi-driver"
+  service_account_role_arn = aws_iam_role.ebs_csi.arn
+  depends_on               = [aws_eks_node_group.default]
 }

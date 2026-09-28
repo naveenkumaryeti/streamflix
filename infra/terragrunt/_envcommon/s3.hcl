@@ -7,5 +7,6 @@ terraform {
 }
 
 inputs = {
+  project     = "streamflix-230944684570"
   environment = local.env.locals.environment
 }

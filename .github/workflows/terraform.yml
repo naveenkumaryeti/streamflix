@@ -1,9 +1,17 @@
 name: Terraform
 
-# Phase 5: Terraform + Terragrunt
 # DEV environment only.
-# Plans run on PRs that touch infrastructure.
-# Apply runs manually through workflow_dispatch.
+#
+# Push to main:
+#   -> Terraform Plan
+#
+# Pull Request:
+#   -> Terraform Plan
+#
+# Manual workflow_dispatch:
+#   -> Terraform Apply
+#
+# Apply is NEVER triggered automatically by push or PR.
 
 on:
   push:
@@ -12,6 +20,7 @@ on:
     paths:
       - "infra/terraform/**"
       - "infra/terragrunt/**"
+
   pull_request:
     paths:
       - "infra/terraform/**"
@@ -24,8 +33,7 @@ permissions:
   contents: read
   pull-requests: write
 
-# Prevent concurrent Terraform operations against the same DEV environment.
-# A second workflow waits instead of running Terraform simultaneously.
+# Prevent concurrent Terraform operations against DEV.
 concurrency:
   group: terraform-dev
   cancel-in-progress: false
@@ -35,14 +43,16 @@ env:
   TG_VERSION: "0.67.0"
   TF_VERSION: "1.16.2"
 
+
+# ============================================================
+# TERRAFORM PLAN
+# ============================================================
+
 jobs:
 
-  # ============================================================
-  # TERRAFORM PLAN
-  # ============================================================
   plan:
-    if: github.event_name == 'pull_request'
-    name: Plan (dev)
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    name: Terraform Plan (dev)
     runs-on: ubuntu-latest
 
     steps:
@@ -50,20 +60,25 @@ jobs:
       # --------------------------------------------------------
       # Checkout
       # --------------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       # --------------------------------------------------------
       # Terraform
       # --------------------------------------------------------
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
+
       # --------------------------------------------------------
       # Terragrunt
       # --------------------------------------------------------
+
       - name: Install Terragrunt
         run: |
           set -euo pipefail
@@ -73,18 +88,24 @@ jobs:
 
           chmod +x /usr/local/bin/terragrunt
 
+          terragrunt --version
+
+
       # --------------------------------------------------------
       # AWS Authentication
       # --------------------------------------------------------
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+
       # --------------------------------------------------------
       # Verify AWS / Terraform / Terragrunt
       # --------------------------------------------------------
+
       - name: Verify AWS identity and tool versions
         run: |
           set -euo pipefail
@@ -92,43 +113,53 @@ jobs:
           echo "========================================"
           echo "AWS Identity"
           echo "========================================"
+
           aws sts get-caller-identity
 
           echo ""
           echo "========================================"
           echo "AWS Region"
           echo "========================================"
+
           aws configure get region
 
           echo ""
           echo "========================================"
           echo "Terraform Version"
           echo "========================================"
+
           terraform version
 
           echo ""
           echo "========================================"
           echo "Terragrunt Version"
           echo "========================================"
+
           terragrunt --version
 
+
       # --------------------------------------------------------
-      # Initialize Terragrunt / Terraform Backend
+      # Initialize Terraform / Terragrunt Backend
       # --------------------------------------------------------
+
       - name: Initialize Terragrunt backend
         working-directory: infra/terragrunt/live/dev
         run: |
           set -euo pipefail
 
-          echo "Initializing all Terragrunt modules..."
+          echo "========================================"
+          echo "Initializing Terragrunt backend"
+          echo "========================================"
 
           terragrunt run-all init \
             -reconfigure \
             --terragrunt-non-interactive
 
+
       # --------------------------------------------------------
       # Verify Generated Backend Configuration
       # --------------------------------------------------------
+
       - name: Verify Terragrunt backend configuration
         working-directory: infra/terragrunt/live/dev
         run: |
@@ -142,32 +173,35 @@ jobs:
             -type f \
             -name backend.tf \
             -print \
-            -exec grep -HnE 'bucket|key|region|dynamodb_table|use_lockfile' {} \; \
+            -exec grep -HnE \
+              'bucket|key|region|dynamodb_table|use_lockfile' {} \; \
             || true
 
+
       # --------------------------------------------------------
-      # Verify Terraform State Access
+      # Verify Terraform State
       # --------------------------------------------------------
+
       - name: Verify Terraform state access
         working-directory: infra/terragrunt/live/dev
         run: |
           set -euo pipefail
 
-          echo "Checking Terragrunt state access..."
+          echo "========================================"
+          echo "Terraform State Verification"
+          echo "========================================"
 
           terragrunt run-all state list \
             --terragrunt-non-interactive \
-            > /tmp/terraform-state-list.txt 2>&1 || true
-
-          echo "========================================"
-          echo "Terraform state resources"
-          echo "========================================"
+            > /tmp/terraform-state-list.txt 2>&1
 
           cat /tmp/terraform-state-list.txt
+
 
       # --------------------------------------------------------
       # Terraform Plan
       # --------------------------------------------------------
+
       - name: Terragrunt plan - dev
         id: plan
         working-directory: infra/terragrunt/live/dev
@@ -185,10 +219,13 @@ jobs:
 
         continue-on-error: true
 
+
       # --------------------------------------------------------
       # Comment Plan on PR
       # --------------------------------------------------------
+
       - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -214,9 +251,11 @@ jobs:
             </details>`
             });
 
+
       # --------------------------------------------------------
-      # Fail Workflow if Plan Failed
+      # Fail if Terraform Plan Failed
       # --------------------------------------------------------
+
       - name: Fail if Terraform plan failed
         if: steps.plan.outcome == 'failure'
         run: |
@@ -227,9 +266,10 @@ jobs:
   # ============================================================
   # TERRAFORM APPLY
   # ============================================================
+
   apply:
     if: github.event_name == 'workflow_dispatch'
-    name: Apply (dev)
+    name: Terraform Apply (dev)
     runs-on: ubuntu-latest
     environment: dev
 
@@ -238,20 +278,25 @@ jobs:
       # --------------------------------------------------------
       # Checkout
       # --------------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       # --------------------------------------------------------
       # Terraform
       # --------------------------------------------------------
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
+
       # --------------------------------------------------------
       # Terragrunt
       # --------------------------------------------------------
+
       - name: Install Terragrunt
         run: |
           set -euo pipefail
@@ -261,18 +306,24 @@ jobs:
 
           chmod +x /usr/local/bin/terragrunt
 
+          terragrunt --version
+
+
       # --------------------------------------------------------
       # AWS Authentication
       # --------------------------------------------------------
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+
       # --------------------------------------------------------
       # Verify AWS / Terraform / Terragrunt
       # --------------------------------------------------------
+
       - name: Verify AWS identity and tool versions
         run: |
           set -euo pipefail
@@ -280,29 +331,35 @@ jobs:
           echo "========================================"
           echo "AWS Identity"
           echo "========================================"
+
           aws sts get-caller-identity
 
           echo ""
           echo "========================================"
           echo "AWS Region"
           echo "========================================"
+
           aws configure get region
 
           echo ""
           echo "========================================"
           echo "Terraform Version"
           echo "========================================"
+
           terraform version
 
           echo ""
           echo "========================================"
           echo "Terragrunt Version"
           echo "========================================"
+
           terragrunt --version
+
 
       # --------------------------------------------------------
       # Write CloudFront Private Key
       # --------------------------------------------------------
+
       - name: Write CloudFront private key
         run: |
           set -euo pipefail
@@ -314,23 +371,29 @@ jobs:
 
           chmod 600 infra/.secrets/cloudfront-private.pem
 
+
       # --------------------------------------------------------
-      # Initialize Terragrunt / Terraform Backend
+      # Initialize Terraform / Terragrunt Backend
       # --------------------------------------------------------
+
       - name: Initialize Terragrunt backend
         working-directory: infra/terragrunt/live/dev
         run: |
           set -euo pipefail
 
-          echo "Initializing all Terragrunt modules..."
+          echo "========================================"
+          echo "Initializing Terragrunt backend"
+          echo "========================================"
 
           terragrunt run-all init \
             -reconfigure \
             --terragrunt-non-interactive
 
+
       # --------------------------------------------------------
       # Verify Generated Backend Configuration
       # --------------------------------------------------------
+
       - name: Verify Terragrunt backend configuration
         working-directory: infra/terragrunt/live/dev
         run: |
@@ -344,32 +407,35 @@ jobs:
             -type f \
             -name backend.tf \
             -print \
-            -exec grep -HnE 'bucket|key|region|dynamodb_table|use_lockfile' {} \; \
+            -exec grep -HnE \
+              'bucket|key|region|dynamodb_table|use_lockfile' {} \; \
             || true
 
+
       # --------------------------------------------------------
-      # Verify Terraform State Access
+      # Verify Terraform State
       # --------------------------------------------------------
+
       - name: Verify Terraform state access
         working-directory: infra/terragrunt/live/dev
         run: |
           set -euo pipefail
 
-          echo "Checking Terragrunt state access..."
+          echo "========================================"
+          echo "Terraform State Verification"
+          echo "========================================"
 
           terragrunt run-all state list \
             --terragrunt-non-interactive \
-            > /tmp/terraform-state-list.txt 2>&1 || true
-
-          echo "========================================"
-          echo "Terraform state resources"
-          echo "========================================"
+            > /tmp/terraform-state-list.txt 2>&1
 
           cat /tmp/terraform-state-list.txt
+
 
       # --------------------------------------------------------
       # Terraform Apply
       # --------------------------------------------------------
+
       - name: Terragrunt apply - dev
         working-directory: infra/terragrunt/live/dev
         run: |

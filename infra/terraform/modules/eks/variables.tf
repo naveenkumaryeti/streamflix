@@ -44,3 +44,7 @@ variable "github_actions_role_arn" {
   type        = string
   default     = null
 }
+variable "data_tier_sg_id" {
+  description = "Security group ID protecting RDS and ElastiCache"
+  type        = string
+}

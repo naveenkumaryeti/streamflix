@@ -34,7 +34,4 @@ variable "cloudfront_signing_public_key_pem" {
      type    = string
      default = ""
 }
-variable "cloudfront_key_group_id" {
-     type    = string
-     default = ""
-}
+

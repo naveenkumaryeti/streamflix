@@ -4,9 +4,17 @@
 
 terraform {
   required_version = ">= 1.7.0"
+
   required_providers {
-    aws = { source = "hashicorp/aws", version = ">= 5.40" }
-    tls = { source = "hashicorp/tls", version = ">= 4.0" }
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.40"
+    }
+
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0"
+    }
   }
 }
 
@@ -23,6 +31,7 @@ resource "aws_eks_cluster" "this" {
   name     = local.name
   role_arn = var.cluster_role_arn
   version  = var.kubernetes_version
+
   access_config {
     authentication_mode                         = "API_AND_CONFIG_MAP"
     bootstrap_cluster_creator_admin_permissions = true
@@ -35,13 +44,27 @@ resource "aws_eks_cluster" "this" {
     public_access_cidrs     = var.public_access_cidrs
   }
 
-  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  enabled_cluster_log_types = [
+    "api",
+    "audit",
+    "authenticator",
+    "controllerManager",
+    "scheduler"
+  ]
 
-  depends_on = [aws_cloudwatch_log_group.eks]
-  tags       = { Name = local.name }
+  depends_on = [
+    aws_cloudwatch_log_group.eks
+  ]
+
+  tags = {
+    Name = local.name
+  }
 }
 
-# ---- GitHub Actions EKS access ----
+# ---------------------------------------------------------------------------
+# GitHub Actions EKS access
+# ---------------------------------------------------------------------------
+
 resource "aws_eks_access_entry" "github_actions" {
   count = var.github_actions_role_arn != null ? 1 : 0
 
@@ -71,6 +94,9 @@ resource "aws_eks_access_policy_association" "github_actions" {
   ]
 }
 
+# ---------------------------------------------------------------------------
+# Managed node group
+# ---------------------------------------------------------------------------
 
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
@@ -92,16 +118,25 @@ resource "aws_eks_node_group" "default" {
     max_unavailable = 1
   }
 
-  labels = { role = "app" }
+  labels = {
+    role = "app"
+  }
 
-  tags = { Name = "${local.name}-node-group" }
+  tags = {
+    Name = "${local.name}-node-group"
+  }
 
   lifecycle {
-    ignore_changes = [scaling_config[0].desired_size] # let the HPA/cluster-autoscaler own this after first apply
+    ignore_changes = [
+      scaling_config[0].desired_size
+    ]
   }
 }
 
-# ---- OIDC provider for IRSA ----
+# ---------------------------------------------------------------------------
+# OIDC provider for IRSA
+# ---------------------------------------------------------------------------
+
 data "tls_certificate" "eks" {
   url = aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
@@ -112,40 +147,68 @@ resource "aws_iam_openid_connect_provider" "eks" {
   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
 }
 
-# ---- Core add-ons ----
+# ---------------------------------------------------------------------------
+# Core EKS add-ons
+# ---------------------------------------------------------------------------
+
 resource "aws_eks_addon" "vpc_cni" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = "vpc-cni"
 }
+
 resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = "coredns"
-  depends_on   = [aws_eks_node_group.default]
+
+  depends_on = [
+    aws_eks_node_group.default
+  ]
 }
+
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = "kube-proxy"
 }
 
-# EBS CSI driver needs real AWS credentials to call EC2/EBS APIs (nodes don't grant this via
-# IMDS by default) — IRSA role scoped to its own controller ServiceAccount in kube-system.
+# ---------------------------------------------------------------------------
+# EBS CSI driver
+#
+# The EBS CSI controller needs AWS credentials to call EC2/EBS APIs.
+# IRSA provides those credentials to the controller ServiceAccount.
+# ---------------------------------------------------------------------------
+
 data "aws_iam_policy_document" "ebs_csi_trust" {
   statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect = "Allow"
+
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+
     principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+      type = "Federated"
+
+      identifiers = [
+        aws_iam_openid_connect_provider.eks.arn
+      ]
     }
+
     condition {
       test     = "StringEquals"
       variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub"
-      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+
+      values = [
+        "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+      ]
     }
+
     condition {
       test     = "StringEquals"
       variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud"
-      values   = ["sts.amazonaws.com"]
+
+      values = [
+        "sts.amazonaws.com"
+      ]
     }
   }
 }
@@ -164,5 +227,8 @@ resource "aws_eks_addon" "ebs_csi" {
   cluster_name             = aws_eks_cluster.this.name
   addon_name               = "aws-ebs-csi-driver"
   service_account_role_arn = aws_iam_role.ebs_csi.arn
-  depends_on               = [aws_eks_node_group.default]
+
+  depends_on = [
+    aws_eks_node_group.default
+  ]
 }

@@ -273,9 +273,9 @@ resource "aws_cloudfront_distribution" "media" {
 
     # HLS manifests/segments are signed so only entitled,
     # authenticated playback sessions can pull them.
-    trusted_key_groups = var.cloudfront_key_group_id != "" ? [
-      var.cloudfront_key_group_id
-    ] : null
+    trusted_key_groups = var.cloudfront_signing_public_key_pem != "" ? [
+  aws_cloudfront_key_group.signing[0].id
+   ] : null
   }
 
   # ----------------------------------------------------------

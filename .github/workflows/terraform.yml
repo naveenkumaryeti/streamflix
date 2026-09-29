@@ -18,47 +18,170 @@ permissions:
   contents: read
   pull-requests: write
 
+# Prevent concurrent Terraform operations against the same DEV environment.
+# A second workflow waits instead of running Terraform simultaneously.
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ap-south-1
   TG_VERSION: "0.67.0"
-  TF_VERSION: "1.7.5"
+  TF_VERSION: "1.16.2"
 
 jobs:
+
+  # ============================================================
+  # TERRAFORM PLAN
+  # ============================================================
   plan:
     if: github.event_name == 'pull_request'
     name: Plan (dev)
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      # --------------------------------------------------------
+      # Checkout
+      # --------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # Terraform
+      # --------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
+      # --------------------------------------------------------
+      # Terragrunt
+      # --------------------------------------------------------
       - name: Install Terragrunt
         run: |
+          set -euo pipefail
+
           curl -sL -o /usr/local/bin/terragrunt \
             "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64"
+
           chmod +x /usr/local/bin/terragrunt
 
+      # --------------------------------------------------------
+      # AWS Authentication
+      # --------------------------------------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS identity
-        run: aws sts get-caller-identity
+      # --------------------------------------------------------
+      # Verify AWS / Terraform / Terragrunt
+      # --------------------------------------------------------
+      - name: Verify AWS identity and tool versions
+        run: |
+          set -euo pipefail
 
+          echo "========================================"
+          echo "AWS Identity"
+          echo "========================================"
+          aws sts get-caller-identity
+
+          echo ""
+          echo "========================================"
+          echo "AWS Region"
+          echo "========================================"
+          aws configure get region
+
+          echo ""
+          echo "========================================"
+          echo "Terraform Version"
+          echo "========================================"
+          terraform version
+
+          echo ""
+          echo "========================================"
+          echo "Terragrunt Version"
+          echo "========================================"
+          terragrunt --version
+
+      # --------------------------------------------------------
+      # Initialize Terragrunt / Terraform Backend
+      # --------------------------------------------------------
+      - name: Initialize Terragrunt backend
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          set -euo pipefail
+
+          echo "Initializing all Terragrunt modules..."
+
+          terragrunt run-all init \
+            -reconfigure \
+            --terragrunt-non-interactive
+
+      # --------------------------------------------------------
+      # Verify Generated Backend Configuration
+      # --------------------------------------------------------
+      - name: Verify Terragrunt backend configuration
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          set -euo pipefail
+
+          echo "========================================"
+          echo "Generated Terraform backend configuration"
+          echo "========================================"
+
+          find .terragrunt-cache \
+            -type f \
+            -name backend.tf \
+            -print \
+            -exec grep -HnE 'bucket|key|region|dynamodb_table|use_lockfile' {} \; \
+            || true
+
+      # --------------------------------------------------------
+      # Verify Terraform State Access
+      # --------------------------------------------------------
+      - name: Verify Terraform state access
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          set -euo pipefail
+
+          echo "Checking Terragrunt state access..."
+
+          terragrunt run-all state list \
+            --terragrunt-non-interactive \
+            > /tmp/terraform-state-list.txt 2>&1 || true
+
+          echo "========================================"
+          echo "Terraform state resources"
+          echo "========================================"
+
+          cat /tmp/terraform-state-list.txt
+
+      # --------------------------------------------------------
+      # Terraform Plan
+      # --------------------------------------------------------
       - name: Terragrunt plan - dev
         id: plan
         working-directory: infra/terragrunt/live/dev
         run: |
           set -o pipefail
-          terragrunt run-all plan -no-color 2>&1 | tee /tmp/plan-dev.txt
+
+          echo "========================================"
+          echo "Terraform Plan - DEV"
+          echo "========================================"
+
+          terragrunt run-all plan \
+            -no-color \
+            --terragrunt-non-interactive \
+            2>&1 | tee /tmp/plan-dev.txt
+
         continue-on-error: true
 
+      # --------------------------------------------------------
+      # Comment Plan on PR
+      # --------------------------------------------------------
       - name: Comment plan on PR
         uses: actions/github-script@v7
         with:
@@ -85,10 +208,19 @@ jobs:
             </details>`
             });
 
+      # --------------------------------------------------------
+      # Fail Workflow if Plan Failed
+      # --------------------------------------------------------
       - name: Fail if Terraform plan failed
         if: steps.plan.outcome == 'failure'
-        run: exit 1
+        run: |
+          echo "Terraform plan failed."
+          exit 1
 
+
+  # ============================================================
+  # TERRAFORM APPLY
+  # ============================================================
   apply:
     if: github.event_name == 'workflow_dispatch'
     name: Apply (dev)
@@ -96,37 +228,151 @@ jobs:
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      # --------------------------------------------------------
+      # Checkout
+      # --------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # Terraform
+      # --------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "${{ env.TF_VERSION }}"
 
+      # --------------------------------------------------------
+      # Terragrunt
+      # --------------------------------------------------------
       - name: Install Terragrunt
         run: |
+          set -euo pipefail
+
           curl -sL -o /usr/local/bin/terragrunt \
             "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TG_VERSION }}/terragrunt_linux_amd64"
+
           chmod +x /usr/local/bin/terragrunt
 
+      # --------------------------------------------------------
+      # AWS Authentication
+      # --------------------------------------------------------
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS identity
-        run: aws sts get-caller-identity
+      # --------------------------------------------------------
+      # Verify AWS / Terraform / Terragrunt
+      # --------------------------------------------------------
+      - name: Verify AWS identity and tool versions
+        run: |
+          set -euo pipefail
 
+          echo "========================================"
+          echo "AWS Identity"
+          echo "========================================"
+          aws sts get-caller-identity
+
+          echo ""
+          echo "========================================"
+          echo "AWS Region"
+          echo "========================================"
+          aws configure get region
+
+          echo ""
+          echo "========================================"
+          echo "Terraform Version"
+          echo "========================================"
+          terraform version
+
+          echo ""
+          echo "========================================"
+          echo "Terragrunt Version"
+          echo "========================================"
+          terragrunt --version
+
+      # --------------------------------------------------------
+      # Write CloudFront Private Key
+      # --------------------------------------------------------
       - name: Write CloudFront private key
         run: |
-          mkdir -p infra/.secrets
-          printf '%s' "${{ secrets.CLOUDFRONT_PRIVATE_KEY_PEM }}" > infra/.secrets/cloudfront-private.pem
+          set -euo pipefail
 
+          mkdir -p infra/.secrets
+
+          printf '%s' "${{ secrets.CLOUDFRONT_PRIVATE_KEY_PEM }}" \
+            > infra/.secrets/cloudfront-private.pem
+
+          chmod 600 infra/.secrets/cloudfront-private.pem
+
+      # --------------------------------------------------------
+      # Initialize Terragrunt / Terraform Backend
+      # --------------------------------------------------------
+      - name: Initialize Terragrunt backend
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          set -euo pipefail
+
+          echo "Initializing all Terragrunt modules..."
+
+          terragrunt run-all init \
+            -reconfigure \
+            --terragrunt-non-interactive
+
+      # --------------------------------------------------------
+      # Verify Generated Backend Configuration
+      # --------------------------------------------------------
+      - name: Verify Terragrunt backend configuration
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          set -euo pipefail
+
+          echo "========================================"
+          echo "Generated Terraform backend configuration"
+          echo "========================================"
+
+          find .terragrunt-cache \
+            -type f \
+            -name backend.tf \
+            -print \
+            -exec grep -HnE 'bucket|key|region|dynamodb_table|use_lockfile' {} \; \
+            || true
+
+      # --------------------------------------------------------
+      # Verify Terraform State Access
+      # --------------------------------------------------------
+      - name: Verify Terraform state access
+        working-directory: infra/terragrunt/live/dev
+        run: |
+          set -euo pipefail
+
+          echo "Checking Terragrunt state access..."
+
+          terragrunt run-all state list \
+            --terragrunt-non-interactive \
+            > /tmp/terraform-state-list.txt 2>&1 || true
+
+          echo "========================================"
+          echo "Terraform state resources"
+          echo "========================================"
+
+          cat /tmp/terraform-state-list.txt
+
+      # --------------------------------------------------------
+      # Terraform Apply
+      # --------------------------------------------------------
       - name: Terragrunt apply - dev
         working-directory: infra/terragrunt/live/dev
         run: |
+          set -euo pipefail
+
+          echo "========================================"
+          echo "Terraform Apply - DEV"
+          echo "========================================"
+
           terragrunt run-all apply \
             -no-color \
             --terragrunt-non-interactive
-
-      

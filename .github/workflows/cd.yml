@@ -29,6 +29,7 @@ permissions:
 env:
   AWS_REGION: ap-south-1
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }} # e.g. 123456789012.dkr.ecr.ap-south-1.amazonaws.com
+  FRONTEND_BUCKET_PREFIX: streamflix-230944684570
 
 jobs:
   determine-env:
@@ -131,8 +132,13 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - run: aws s3 sync frontend/dist s3://streamflix-${{ needs.determine-env.outputs.environment }}-frontend --delete
-      - run: |
+      - name: Upload frontend to S3
+        run: |
+          aws s3 sync frontend/dist \
+            "s3://streamflix-230944684570-${{ needs.determine-env.outputs.environment }}-frontend" \
+            --delete
+      - name: Invalidate CloudFront
+        run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"

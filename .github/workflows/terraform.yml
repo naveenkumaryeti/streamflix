@@ -148,7 +148,11 @@ jobs:
             > infra/.secrets/cloudfront-private.pem
 
           chmod 600 infra/.secrets/cloudfront-private.pem    
-
+      - name: Derive CloudFront public key
+        run: |
+          set -euo pipefail
+          openssl rsa -in infra/.secrets/cloudfront-private.pem \
+            -pubout -out infra/.secrets/cloudfront-public.pem
       # --------------------------------------------------------
       # Initialize Terraform / Terragrunt Backend
       # --------------------------------------------------------
@@ -381,7 +385,11 @@ jobs:
             > infra/.secrets/cloudfront-private.pem
 
           chmod 600 infra/.secrets/cloudfront-private.pem
-
+      - name: Derive CloudFront public key
+        run: |
+          set -euo pipefail
+          openssl rsa -in infra/.secrets/cloudfront-private.pem \
+            -pubout -out infra/.secrets/cloudfront-public.pem
 
       # --------------------------------------------------------
       # Initialize Terraform / Terragrunt Backend

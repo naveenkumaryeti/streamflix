@@ -120,10 +120,16 @@ data "aws_iam_policy_document" "github_actions_trust" {
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
-    condition {
+        condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      # GitHub's OIDC token sub claim sometimes includes numeric org/repo IDs
+      # (repo:org@id/repo@id:...) instead of the plain repo:org/repo:... form —
+      # trust both so CI doesn't silently break depending on which format is issued.
+      values   = [
+        "repo:${var.github_repo}:*",
+        "repo:${split("/", var.github_repo)[0]}@*/${split("/", var.github_repo)[1]}@*:*",
+      ]
     }
   }
 }

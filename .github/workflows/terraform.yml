@@ -55,6 +55,7 @@ jobs:
         id: plan
         working-directory: infra/terragrunt/live/dev
         run: |
+          set -o pipefail
           terragrunt run-all plan -no-color 2>&1 | tee /tmp/plan-dev.txt
         continue-on-error: true
 
@@ -128,16 +129,4 @@ jobs:
             -no-color \
             --terragrunt-non-interactive
 
-      - name: Re-apply IAM cluster
-        working-directory: infra/terragrunt/live/dev/iam-cluster
-        run: |
-          terragrunt apply \
-            -no-color \
-            --terragrunt-non-interactive
-
-      - name: Re-apply IAM IRSA
-        working-directory: infra/terragrunt/live/dev/iam-irsa
-        run: |
-          terragrunt apply \
-            -no-color \
-            --terragrunt-non-interactive
+      

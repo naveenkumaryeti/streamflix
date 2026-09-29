@@ -15,7 +15,7 @@ dependency "iam" {
 dependency "eks" {
   config_path = "../eks"
   mock_outputs = { oidc_provider_arn = "", oidc_provider_url = "" }
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "apply"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 
 dependency "s3" {

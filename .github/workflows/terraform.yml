@@ -6,6 +6,12 @@ name: Terraform
 # Apply runs manually through workflow_dispatch.
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/**"
+      - "infra/terragrunt/**"
   pull_request:
     paths:
       - "infra/terraform/**"

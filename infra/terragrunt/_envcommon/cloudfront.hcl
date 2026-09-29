@@ -7,7 +7,7 @@ terraform {
 }
 
 dependency "s3" {
-  config_path = "../s3"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/s3"
   mock_outputs = {
     bucket_regional_domain_names = { frontend = "mock.s3.amazonaws.com", processed = "mock.s3.amazonaws.com" }
     bucket_names                 = { logs = "mock-logs" }
@@ -16,7 +16,7 @@ dependency "s3" {
 }
 
 dependency "waf" {
-  config_path = "../waf"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/waf"
   mock_outputs = { web_acl_arn = "" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }

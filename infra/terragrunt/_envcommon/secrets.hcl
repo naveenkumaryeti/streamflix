@@ -8,5 +8,11 @@ terraform {
 
 inputs = {
   environment = local.env.locals.environment
-  cloudfront_private_key_pem = file("${get_repo_root()}/infra/.secrets/cloudfront-private.pem")
+  cloudfront_private_key_pem = trimspace(
+  replace(
+    file("${get_repo_root()}/infra/.secrets/cloudfront-private.pem"),
+    "\r\n",
+    "\n"
+  )
+)
 }

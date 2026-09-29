@@ -5,10 +5,10 @@ terraform {
   source = "${get_repo_root()}/infra/terraform/modules/iam"
 }
 dependency "s3" {
-  config_path = "../s3"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/s3"
 }
 dependency "dynamodb" {
-  config_path = "../dynamodb"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/dynamodb"
 }
 inputs = {
   environment        = local.env.locals.environment

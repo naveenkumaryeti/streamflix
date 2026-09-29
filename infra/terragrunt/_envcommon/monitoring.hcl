@@ -7,22 +7,22 @@ terraform {
 }
 
 dependency "rds" {
-  config_path = "../rds"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/rds"
   mock_outputs = { instance_arn = "arn:aws:rds:ap-south-1:000000000000:db:mock" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 dependency "elasticache" {
-  config_path = "../elasticache"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/elasticache"
   mock_outputs = { primary_endpoint = "mock.cache.amazonaws.com" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 dependency "eks" {
-  config_path = "../eks"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/eks"
   mock_outputs = { cluster_name = "mock-cluster" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 dependency "cloudfront" {
-  config_path = "../cloudfront"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/cloudfront"
   mock_outputs = { app_distribution_id = "MOCKID" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }

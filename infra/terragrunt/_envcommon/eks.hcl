@@ -7,7 +7,7 @@ terraform {
 }
 
 dependency "vpc" {
-  config_path = "../vpc"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/vpc"
   mock_outputs = {
     private_subnet_ids = ["subnet-mock1", "subnet-mock2"]
     public_subnet_ids  = ["subnet-mock3", "subnet-mock4"]
@@ -16,7 +16,7 @@ dependency "vpc" {
 }
 
 dependency "iam" {
-  config_path = "../iam-cluster"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/iam-cluster"
 
   mock_outputs = {
     eks_cluster_role_arn   = "arn:aws:iam::000000000000:role/mock"
@@ -40,6 +40,8 @@ inputs = {
 
   private_subnet_ids      = dependency.vpc.outputs.private_subnet_ids
   public_subnet_ids       = dependency.vpc.outputs.public_subnet_ids
+  
+  data_tier_sg_id         = dependency.vpc.outputs.data_tier_sg_id
 
   node_instance_types     = local.env.locals.eks_node_types
   capacity_type           = local.env.locals.eks_capacity_type

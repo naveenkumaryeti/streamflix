@@ -7,7 +7,7 @@ terraform {
 }
 
 dependency "cloudfront" {
-  config_path = "../cloudfront"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/cloudfront"
   mock_outputs = { app_distribution_domain_name = "mock.cloudfront.net", media_distribution_domain_name = "mock.cloudfront.net" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }

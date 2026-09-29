@@ -7,19 +7,19 @@ terraform {
 }
 
 dependency "iam" {
-  config_path = "../iam-cluster"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/iam-cluster"
   mock_outputs = { mediaconvert_role_arn = "arn:aws:iam::000000000000:role/mock" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 
 dependency "eks" {
-  config_path = "../eks"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/eks"
   mock_outputs = { oidc_provider_arn = "", oidc_provider_url = "" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 
 dependency "s3" {
-  config_path = "../s3"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/s3"
   mock_outputs = {
     bucket_arns = {
       raw = "arn:aws:s3:::mock-raw", processed = "arn:aws:s3:::mock-processed", thumbs = "arn:aws:s3:::mock-thumbs"
@@ -29,25 +29,25 @@ dependency "s3" {
 }
 
 dependency "dynamodb" {
-  config_path = "../dynamodb"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/dynamodb"
   mock_outputs = { table_arn = "arn:aws:dynamodb:ap-south-1:000000000000:table/mock" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 
 dependency "rds" {
-  config_path = "../rds"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/rds"
   mock_outputs = { secret_arn = "arn:aws:secretsmanager:ap-south-1:000000000000:secret:mock" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 
 dependency "elasticache" {
-  config_path = "../elasticache"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/elasticache"
   mock_outputs = { secret_arn = "arn:aws:secretsmanager:ap-south-1:000000000000:secret:mock" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 
 dependency "secrets" {
-  config_path = "../secrets"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/secrets"
   mock_outputs = {
     jwt_secret_arn                = "arn:aws:secretsmanager:ap-south-1:000000000000:secret:mock"
     cloudfront_signing_secret_arn = "arn:aws:secretsmanager:ap-south-1:000000000000:secret:mock"

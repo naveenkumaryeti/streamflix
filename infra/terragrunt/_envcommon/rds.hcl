@@ -7,7 +7,7 @@ terraform {
 }
 
 dependency "vpc" {
-  config_path = "../vpc"
+  config_path = "${get_repo_root()}/infra/terragrunt/live/${local.env.locals.environment}/vpc"
   mock_outputs = { private_subnet_ids = ["subnet-mock1", "subnet-mock2"], data_tier_sg_id = "sg-mock" }
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }

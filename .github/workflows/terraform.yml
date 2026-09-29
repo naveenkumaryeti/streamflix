@@ -137,7 +137,17 @@ jobs:
           echo "========================================"
 
           terragrunt --version
+     
+      - name: Write CloudFront private key
+        run: |
+          set -euo pipefail
 
+          mkdir -p infra/.secrets
+
+          printf '%s' "${{ secrets.CLOUDFRONT_PRIVATE_KEY_PEM }}" \
+            > infra/.secrets/cloudfront-private.pem
+
+          chmod 600 infra/.secrets/cloudfront-private.pem    
 
       # --------------------------------------------------------
       # Initialize Terraform / Terragrunt Backend

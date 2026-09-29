@@ -23,6 +23,10 @@ resource "aws_eks_cluster" "this" {
   name     = local.name
   role_arn = var.cluster_role_arn
   version  = var.kubernetes_version
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
 
   vpc_config {
     subnet_ids              = concat(var.private_subnet_ids, var.public_subnet_ids)
@@ -37,6 +41,37 @@ resource "aws_eks_cluster" "this" {
   tags       = { Name = local.name }
 }
 
+# ---- GitHub Actions EKS access ----
+resource "aws_eks_access_entry" "github_actions" {
+  count = var.github_actions_role_arn != null ? 1 : 0
+
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.github_actions_role_arn
+  type          = "STANDARD"
+
+  depends_on = [
+    aws_eks_cluster.this
+  ]
+}
+
+resource "aws_eks_access_policy_association" "github_actions" {
+  count = var.github_actions_role_arn != null ? 1 : 0
+
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.github_actions_role_arn
+
+  policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [
+    aws_eks_access_entry.github_actions
+  ]
+}
+
+
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${local.name}-default"
@@ -46,7 +81,7 @@ resource "aws_eks_node_group" "default" {
   instance_types = var.node_instance_types
   capacity_type  = var.capacity_type
   ami_type       = "AL2023_x86_64_STANDARD"
-  
+
   scaling_config {
     desired_size = var.desired_size
     min_size     = var.min_size
